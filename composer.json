@@ -1,0 +1,20 @@
+{
+    "prefer-stable": false,
+    "name": "alteringres/property-accessor-cache",
+    "authors": [
+        {
+            "name": "Alter Ingres",
+            "email": "alterg79@gmail.com"
+        }
+    ],
+    "require": {
+        "symfony/property-access": "^3.3",
+        "symfony/serializer": "^3.3",
+        "doctrine/orm": "^2.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ingres\\": "src/"
+        }
+    }
+}
