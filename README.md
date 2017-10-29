@@ -1,16 +1,16 @@
 # Description
 
 Generates a property accessor based on https://github.com/symfony/property-access which will cache
-the access methods. This will make it faster
+the access methods. This will make it faster.
 
 Each time the class structure is changed, recompile again.
 
 Will create a "pool", an object aware of another set of objects, which knows how to 
 perform get/set operations on them.
 
-Can generate a many "pools" as you wont
+Can generate as many "pools" as you wont.
 
-It works only with objects, it is not it's scope to deal with array for the moment
+It works only with objects, it is not it's scope to deal with array for the moment.
 
 # Demo
 
