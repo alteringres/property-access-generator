@@ -82,7 +82,7 @@ class ObjectPoolAccessBuilder
                     }
                     $aliasName = $aliasComposer;
                 }
-                $aliasToObjectContent[] = '"' . $aliasName . '"     =>  ' . $objectName . "";
+                $aliasToObjectContent[] = '"' . addslashes($aliasName) . '"     =>  ' . $objectName . "";
             }
         }
 

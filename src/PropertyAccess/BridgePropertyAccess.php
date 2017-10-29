@@ -52,6 +52,22 @@ class BridgePropertyAccess implements PropertyAccessorInterface
     }
 
     /**
+     * @param bool $usePool
+     */
+    public function setUsePool(bool $usePool)
+    {
+        $this->usePool = $usePool;
+    }
+
+    /**
+     * @param bool $canLog
+     */
+    public function setCanLog(bool $canLog)
+    {
+        $this->canLog = $canLog;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function setValue(&$objectOrArray, $propertyPath, $value)
