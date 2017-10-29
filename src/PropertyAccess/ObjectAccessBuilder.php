@@ -48,11 +48,16 @@ class ObjectAccessBuilder
      *
      * @param $objectImpl
      * @param array $properties
+     * @param $ignoreFaultyProperties
+     *
      * @return bool|mixed|string
-     * @internal param $object
+     * @throws \Exception
      */
-    public function generatePropertiesAccess($objectImpl, array $properties)
-    {
+    public function generatePropertiesAccess(
+        $objectImpl,
+        array $properties,
+        $ignoreFaultyProperties
+    ) {
         $propertyAccessor = PropertyAccess::createPropertyAccessor();
         $object = get_class($objectImpl);
 
@@ -69,34 +74,49 @@ class ObjectAccessBuilder
         $getReadAccessInfoMethodRefl->setAccessible(true);
         $getWriteAccessInfoMethodRefl->setAccessible(true);
 
+        $ignoredProperties = [];
+
         foreach ($properties as $property) {
-            $readAccessInfo = $getReadAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property );
+            try {
+                $readAccessInfo = $getReadAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property);
 
-            $readCall = $this->generateGetValue($readAccessInfo, $object, $property);
-            $this->readPropertyAccess[$property] = $readCall;
+                $readCall = $this->generateGetValue($readAccessInfo, $object, $property);
 
-            $readPropertyCacheRefl->setValue($propertyAccessor, []);
-            $writePropertyCacheRefl->setValue($propertyAccessor, []);
+                $readPropertyCacheRefl->setValue($propertyAccessor, []);
+                $writePropertyCacheRefl->setValue($propertyAccessor, []);
 
-            $writeAccessInfo = $getWriteAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property, null);
-            $writeCall = $this->generateWriteValue($writeAccessInfo, $object, $property, null);
-            $this->writePropertyAccess[$property] = $writeCall;
+                $writeAccessInfo = $getWriteAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property, null);
+                $writeCall = $this->generateWriteValue($writeAccessInfo, $object, $property, null);
 
-            $readPropertyCacheRefl->setValue($propertyAccessor, []);
-            $writePropertyCacheRefl->setValue($propertyAccessor, []);
+                $readPropertyCacheRefl->setValue($propertyAccessor, []);
+                $writePropertyCacheRefl->setValue($propertyAccessor, []);
 
-            $writeCollectionAccessInfo = $getWriteAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property,  [1]);
-            $writeCollectionCall = $this->generateWriteValue($writeCollectionAccessInfo, $object, $property, [1]);
-            $this->writeCollectionPropertyAccess[$property] = $writeCollectionCall;
+                $writeCollectionAccessInfo = $getWriteAccessInfoMethodRefl->invoke($propertyAccessor, $object, $property, [1]);
+                $writeCollectionCall = $this->generateWriteValue($writeCollectionAccessInfo, $object, $property, [1]);
 
 
-            $isWritable = $propertyAccessor->isWritable($objectImpl, $property);
-            $isReadable = $propertyAccessor->isReadable($objectImpl, $property);
-            $this->isReadable[$property] = $isReadable;
-            $this->isWritable[$property] = $isWritable;
+                $isWritable = $propertyAccessor->isWritable($objectImpl, $property);
+                $isReadable = $propertyAccessor->isReadable($objectImpl, $property);
+
+                /*
+                 * Save data at the end, when no error can occur
+                 */
+                $this->isReadable[$property] = $isReadable;
+                $this->isWritable[$property] = $isWritable;
+                $this->writeCollectionPropertyAccess[$property] = $writeCollectionCall;
+                $this->writePropertyAccess[$property] = $writeCall;
+                $this->readPropertyAccess[$property] = $readCall;
+
+            } catch (\Exception $exception) {
+                $ignoredProperties[] = $property;
+            }
+
+            if (isset($exception) && !$ignoreFaultyProperties) {
+                throw $exception;
+            }
         }
 
-        return $this->generate();
+        return [ $this->generate(), $ignoredProperties ];
     }
 
     /**
@@ -156,9 +176,6 @@ COLLECTION_WRITE;
             // a *protected* property was found on the class, property_exists()
             // returns true, consequently the following line will result in a
             // fatal error.
-
-            $object->$property = $value;
-
             return '$objectOrArray->' . $property . ' = ' . $value;
 
         } elseif (PropertyAccessor::ACCESS_TYPE_MAGIC === $access[PropertyAccessor::ACCESS_TYPE]) {
@@ -166,7 +183,13 @@ COLLECTION_WRITE;
             return '$objectOrArray->' . $access[PropertyAccessor::ACCESS_NAME] . '($value)';
 
         } elseif (PropertyAccessor::ACCESS_TYPE_NOT_FOUND === $access[PropertyAccessor::ACCESS_TYPE]) {
-            throw new NoSuchPropertyException(sprintf('Could not determine access type for property "%s" in class "%s".', $property, get_class($object)));
+            throw new NoSuchPropertyException(sprintf(
+                'Could not determine access type for property "%s" in class "%s".',
+                $property,
+                is_object($object)
+                    ? get_class($object)
+                    : (is_string($object) ? $object : gettype($object))
+            ));
         } else {
             throw new NoSuchPropertyException($access[PropertyAccessor::ACCESS_NAME]);
         }

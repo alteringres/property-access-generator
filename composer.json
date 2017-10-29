@@ -9,7 +9,6 @@
     ],
     "require": {
         "symfony/property-access": "^3.3",
-        "symfony/serializer": "^3.3",
         "doctrine/orm": "^2.5"
     },
     "autoload": {

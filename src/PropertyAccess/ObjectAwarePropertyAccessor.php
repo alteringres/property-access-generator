@@ -2,7 +2,6 @@
 
 namespace Ingres\PropertyAccess;
 
-
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 
 /**
@@ -58,7 +57,7 @@ class ObjectAwarePropertyAccessor#__CALL_CONSTRUCTOR__
      */
     public function getValue($objectOrArray, $propertyPath)
     {
-        return $this->getters[$propertyPath]($objectOrArray);
+        return $this->{$this->getters[$propertyPath]}($objectOrArray);
     }
 
     /**
@@ -83,6 +82,27 @@ class ObjectAwarePropertyAccessor#__CALL_CONSTRUCTOR__
         }
 
         return $this->isReadable[$propertyPath];
+    }
+
+    /**
+     * @param $property
+     * @param $operation
+     * @return bool
+     * @throws \Exception
+     */
+    public function hasAccessToOperation($property, $operation)
+    {
+        if ($operation === ObjectAccess::OPERATION_GET) {
+
+            return isset($this->getters[$property]);
+
+        } elseif ($operation === ObjectAccess::OPERATION_SET) {
+
+            return isset($this->setters[$property]);
+
+        } else {
+            throw new \Exception("Operation " . $operation . ' is not recognized');
+        }
     }
 
 #__AUTO_GENERATED_FUNCTdsfsIONS_SETTERS_

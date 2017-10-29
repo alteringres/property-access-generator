@@ -9,20 +9,39 @@ use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
  * Class ObjectPoolPropertyAccess
  * @package Ingres\Symfony\PropertyAccess
  */
-class ObjectPoolPropertyAccess implements PropertyAccessorInterface
+class ObjectPoolPropertyAccess implements ObjectPoolPropertyAccessInterface
 {
     /**
-     * @var array|PropertyAccessorInterface[]
+     * @var array|GeneratedPropertyAccessorInterface[]
      */
     protected $classPropertyAccessors = [];
+
+    /** @var ObjectPoolPropertyAccess */
+    protected static $instance = null;
+
+    /**
+     * Since nothing can change during runtime, this must be a singleton
+     *
+     * @return ObjectPoolPropertyAccess
+     */
+    public static function getInstance()
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+
+        return self::$instance;
+    }
 
     /**
      * ObjectPoolPropertyAccess constructor.
      */
-    public function __construct()
+    protected function __construct()
     {
+#__AUTO_GENERATE_OBJECT_ASSIGNMENT__
+
         $this->classPropertyAccessors = [
-            #__AUTO_GENERATE_CLASS_INSTANCES__
+#__AUTO_GENERATE_CLASS_PROPERTY_ACCESSORS___
         ];
     }
 
@@ -60,5 +79,33 @@ class ObjectPoolPropertyAccess implements PropertyAccessorInterface
     {
         $class = get_class($objectOrArray);
         return $this->classPropertyAccessors[$class]->isReadable($objectOrArray, $propertyPath);
+    }
+
+    /**
+     * @param $object
+     * @return bool
+     */
+    public function hasAccessTo($object)
+    {
+        $class = get_class($object);
+        return isset($this->classPropertyAccessors[$class]);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function hasAccessToOperation($object, $property, $operation)
+    {
+        if (is_object($object)) {
+            $class = get_class($object);
+            if (isset($this->classPropertyAccessors[$class])) {
+                return $this->classPropertyAccessors[$class]->hasAccessToOperation(
+                    $property,
+                    $operation
+                );
+            }
+        }
+
+        return false;
     }
 }

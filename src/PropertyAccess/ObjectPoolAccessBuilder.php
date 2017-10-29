@@ -10,30 +10,49 @@ class ObjectPoolAccessBuilder
 {
     /**
      * @param array $objectAccessCollection
+     * @param bool $ignoreFaultyProperties
+     * @param string $generatedClassName
      * @return array
      * @throws \Exception
      */
     public function generatePoolAccess(
-        array $objectAccessCollection
+        array $objectAccessCollection,
+        bool $ignoreFaultyProperties,
+        string $generatedClassName
     ): array {
 
-        $classAccessorCollection = '';
-        $reflector = new \ReflectionClass(ObjectPoolPropertyAccess::class);
-        $templatePath = $reflector->getFileName();
-        $classContent = file_get_contents($templatePath);
-        $className = 'GeneratedPoolPropertyAccess';
+        $reflector      = new \ReflectionClass(ObjectPoolPropertyAccess::class);
+        $templatePath   = $reflector->getFileName();
+        $namespace      = $reflector->getNamespaceName();
+        $classFullName  = self::getClassFullName($namespace, $generatedClassName);
+        $classContent   = file_get_contents($templatePath);
+
+        $ignoredPropertiesCollection = [];
+
+        $objectAssignmentContent    = [];
+        $aliasToObjectContent       = [];
 
         /** @var ObjectAccess $objectAcess */
         foreach ($objectAccessCollection as $objectAccess) {
             $class      = $objectAccess->getClass();
             $attributes = $objectAccess->getAttributes();
+            $aliases    = $objectAccess->getClassAliases();
 
             if (!is_object($class)) {
                 throw new \Exception("Only objects can have property access pool auto generated");
             }
 
+            /*
+             * Construct code which will create an anonymous class used as property accessor
+             */
             $objectAccessBuilder = new ObjectAccessBuilder();
-            $classAccessor = $objectAccessBuilder->generatePropertiesAccess($class, $attributes);
+            list($classAccessor, $ignoredProperties) = $objectAccessBuilder->generatePropertiesAccess(
+                $class,
+                $attributes,
+                $ignoreFaultyProperties
+            );
+
+            $ignoredPropertiesCollection[get_class($objectAccess->getClass())] = $ignoredProperties;
 
             $splitContentMark = '#remove_all_before_this';
             $constructorCallMark = '#__CALL_CONSTRUCTOR__';
@@ -42,22 +61,85 @@ class ObjectPoolAccessBuilder
             if (false !== $removeBeforePos) {
                 $classAccessor = substr($classAccessor, $removeBeforePos + strlen($splitContentMark) + 1);
             }
-            $classAccessorCollection .= (empty($classAccessorCollection)) ? '' : ",\n";
-            $classAccessorCollection .= '"' . get_class($class) . '"    =>  new ' . $classAccessor;
+
+            $anonymousClassDeclared     = ' new ' . $classAccessor;
+
+            /*
+             * Declare object initialized with this anonymous class
+             */
+            $objectName = self::generateAnonymousClassNewName();
+            $objectAssignmentContent[] = "{$objectName} = {$anonymousClassDeclared};\n";
+
+            /*
+             * Create aliases
+             */
+            foreach ($aliases as $aliasKey => $aliasComposer) {
+                if (is_callable($aliasComposer)) {
+                    $aliasName = $aliasComposer($class);
+                } else {
+                    if (!is_string($aliasComposer)) {
+                        throw new \Exception("Only callable or strings can be used as alias generators");
+                    }
+                    $aliasName = $aliasComposer;
+                }
+                $aliasToObjectContent[] = '"' . $aliasName . '"     =>  ' . $objectName . "";
+            }
         }
 
+        /*
+         * Replace accessor assignment
+         */
         $classContent = str_replace(
-            '#__AUTO_GENERATE_CLASS_INSTANCES__',
-            $classAccessorCollection,
+            '#__AUTO_GENERATE_OBJECT_ASSIGNMENT__',
+            implode(";\n", $objectAssignmentContent),
+            $classContent
+        );
+
+        /*
+         * Replace alias in template
+         */
+        $classContent = str_replace(
+            '#__AUTO_GENERATE_CLASS_PROPERTY_ACCESSORS___',
+            implode(",\n", $aliasToObjectContent),
             $classContent
         );
 
         $classContent = str_replace(
             'class ObjectPoolPropertyAccess',
-            'class ' . $className,
+            'class ' . $generatedClassName,
             $classContent
         );
 
-        return [ $classContent, $className ];
+
+        return [
+            $classContent,
+            $classFullName,
+            $ignoredPropertiesCollection
+        ];
+    }
+
+    /**
+     * Returns class full name
+     *
+     * @param $namespace
+     * @param $className
+     * @return string
+     */
+    protected static function getClassFullName($namespace, $className)
+    {
+        return $namespace . "\\" . $className;
+    }
+
+    /**
+     * Returns a name for anonymous class
+     *
+     * @return string
+     */
+    protected static function generateAnonymousClassNewName()
+    {
+        static $classDeclareCounter = 0;
+        $classDeclareCounter++;
+
+        return '$autoGeneratedAnonymousClass_' . $classDeclareCounter;
     }
 }
