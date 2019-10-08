@@ -420,3 +420,4 @@ echo measure($bridgePropertyAccess) . PHP_EOL;
 ````
 58.681231021881 s //cached pool
 98.443068027496 s //native property accessor
+t1
